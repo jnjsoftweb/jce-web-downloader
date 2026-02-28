@@ -117,6 +117,80 @@ export function getElementFromEvent(event: MouseEvent): Element | null {
 }
 
 /**
+ * 요소의 CSS Selector를 생성합니다.
+ *
+ * 우선순위:
+ * 1. 요소 자신에 고유한 id가 있으면 #id 반환
+ * 2. id 없으면 tag + .className 조합으로 selector 생성
+ * 3. 형제 중 같은 selector가 있으면 :nth-child(n) 추가
+ * 4. 조상 중 id가 있는 곳까지만 경로 생성 (단축)
+ * 5. 최대 5 depth까지만 올라가고 그 이상이면 그냥 반환
+ *
+ * @param element - CSS Selector를 생성할 대상 DOM 요소
+ * @returns CSS Selector 문자열
+ */
+export function generateCSSSelector(element: Element): string {
+  // 1. 요소 자신에 고유한 id가 있는 경우
+  const ownId = element.getAttribute('id')
+  if (ownId && document.querySelectorAll(`#${CSS.escape(ownId)}`).length === 1) {
+    return `#${CSS.escape(ownId)}`
+  }
+
+  const MAX_DEPTH = 5
+  const segments: string[] = []
+  let current: Element | null = element
+  let depth = 0
+
+  while (current && current !== document.documentElement && depth < MAX_DEPTH) {
+    // 조상 중 id가 있으면 그 지점에서 단축 (본인 제외)
+    if (current !== element) {
+      const currentId = current.getAttribute('id')
+      if (currentId && document.querySelectorAll(`#${CSS.escape(currentId)}`).length === 1) {
+        segments.unshift(`#${CSS.escape(currentId)}`)
+        return segments.join(' > ')
+      }
+    }
+
+    const tag = current.tagName.toLowerCase()
+
+    // className 조합으로 selector 생성
+    const classes = Array.from(current.classList)
+      .filter(cls => cls.trim() !== '')
+      .map(cls => `.${CSS.escape(cls)}`)
+      .join('')
+
+    let selector = tag + classes
+
+    // 형제 중 동일 selector가 있으면 :nth-child 추가
+    const parent = current.parentElement
+    if (parent) {
+      const siblings = Array.from(parent.children)
+      const matchingSiblings = siblings.filter(sib => {
+        if (sib.tagName.toLowerCase() !== tag) return false
+        if (classes === '') return true
+        const sibClasses = Array.from(sib.classList)
+          .filter(cls => cls.trim() !== '')
+          .map(cls => `.${CSS.escape(cls)}`)
+          .join('')
+        return sibClasses === classes
+      })
+
+      if (matchingSiblings.length > 1) {
+        // 1-based index of all children (not just same-tag siblings) for nth-child
+        const index = siblings.indexOf(current) + 1
+        selector = `${selector}:nth-child(${index})`
+      }
+    }
+
+    segments.unshift(selector)
+    current = current.parentElement
+    depth++
+  }
+
+  return segments.join(' > ')
+}
+
+/**
  * XPath로 문서에서 요소를 찾아 반환합니다. (검증용)
  * generateXPath의 결과를 역검증할 때 사용합니다.
  *

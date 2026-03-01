@@ -9,6 +9,7 @@
 
 import type {
   ExtractRule,
+  ObjectRule,
   ArrayRule,
   ExtractionResult,
   ArrayExtractionResult,
@@ -130,6 +131,21 @@ export function extractByRules(rules: ExtractRule[]): ExtractionResult {
   const result: ExtractionResult = {}
   for (const rule of rules) {
     result[rule.name] = extractByRule(rule)
+  }
+  return result
+}
+
+/**
+ * ObjectRule에 따라 중첩 객체를 추출합니다.
+ * children의 각 ExtractRule을 document 기준으로 추출하여 하나의 객체로 반환합니다.
+ *
+ * @param rule - ObjectRule
+ * @returns ExtractionResult (key: child.name, value: string | null)
+ */
+export function extractObjectByRule(rule: ObjectRule): ExtractionResult {
+  const result: ExtractionResult = {}
+  for (const child of rule.children) {
+    result[child.name] = extractByRule(child)
   }
   return result
 }

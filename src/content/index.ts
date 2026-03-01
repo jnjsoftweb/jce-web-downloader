@@ -19,9 +19,11 @@ import type {
   MessageResponse,
   ExtractOutput,
   ExtractionResult,
+  ArrayExtractionResult,
 } from '../types'
 import {
   extractByRules,
+  extractObjectByRule,
   extractArrayByRule,
   getCurrentUrl,
 } from '../utils/extractor'
@@ -111,13 +113,21 @@ async function handleExtractData(
 ): Promise<void> {
   try {
     const { config } = message.payload
-    const { rules, arrayRules, format } = config
+    const { rules, objectRules, arrayRules, format } = config
 
     // 단일 규칙 추출
     const singleResults: ExtractionResult = extractByRules(rules)
 
+    // Object 모드 추출
+    const objectResults: Record<string, ExtractionResult> = {}
+    if (objectRules) {
+      for (const objectRule of objectRules) {
+        objectResults[objectRule.name] = extractObjectByRule(objectRule)
+      }
+    }
+
     // Array 모드 추출
-    const arrayResults: Record<string, ReturnType<typeof extractArrayByRule>> = {}
+    const arrayResults: Record<string, ArrayExtractionResult> = {}
     if (arrayRules) {
       for (const arrayRule of arrayRules) {
         arrayResults[arrayRule.name] = extractArrayByRule(arrayRule)
@@ -126,6 +136,7 @@ async function handleExtractData(
 
     const output: ExtractOutput = {
       singleResults,
+      objectResults,
       arrayResults,
       format,
       url: getCurrentUrl(),

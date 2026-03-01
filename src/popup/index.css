@@ -462,6 +462,27 @@ body {
    배열 추출 규칙
    ============================================================ */
 
+/* 객체 규칙 아이템 — rule-item과 동일 구조, 보라 accent */
+.object-rule-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: #faf5ff;
+  border: 1px solid #d8b4fe;
+  border-radius: var(--radius-md);
+}
+
+.object-rule-item__badge {
+  font-size: var(--font-size-xs);
+  color: #6d28d9;
+  background: #ede9fe;
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 /* 배열 규칙 아이템 — rule-item과 동일 구조, 초록 accent로 시각 구분 */
 .array-rule-item {
   display: flex;

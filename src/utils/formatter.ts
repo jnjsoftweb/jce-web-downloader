@@ -144,11 +144,12 @@ export function formatOutput(
 
   switch (format) {
     case 'json': {
-      // 단일 + 배열 모두 포함한 통합 JSON
+      // 단일 + 객체 + 배열 모두 포함한 통합 JSON
       const combined = {
         url: output.url,
         timestamp: output.timestamp,
         single: output.singleResults,
+        object: output.objectResults,
         array: output.arrayResults,
       }
       return JSON.stringify(combined, null, 2)

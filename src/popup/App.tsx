@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type {
   ExtractRule,
+  ObjectRule,
   ArrayRule,
   ExtractConfig,
   OutputFormat,
@@ -103,6 +104,126 @@ function RuleForm({ initialRule, onSave, onCancel }: RuleFormProps) {
           className="btn btn--primary"
           onClick={handleSave}
           disabled={!name.trim() || !xpath.trim()}
+        >
+          저장
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// ObjectRuleForm
+// ============================================================
+
+interface ObjectRuleFormProps {
+  initialRule?: ObjectRule
+  onSave: (rule: ObjectRule) => void
+  onCancel: () => void
+}
+
+function ObjectRuleForm({ initialRule, onSave, onCancel }: ObjectRuleFormProps) {
+  const [name, setName] = useState(initialRule?.name ?? '')
+  const [children, setChildren] = useState<ExtractRule[]>(initialRule?.children ?? [])
+
+  const addChild = () => {
+    setChildren((prev) => [
+      ...prev,
+      { id: generateId(), name: '', xpath: '', attr: 'innerText' },
+    ])
+  }
+
+  const updateChild = (index: number, field: keyof ExtractRule, value: string) => {
+    setChildren((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, [field]: value } : c))
+    )
+  }
+
+  const removeChild = (index: number) => {
+    setChildren((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const isValid =
+    name.trim() &&
+    children.length > 0 &&
+    children.every((c) => c.name.trim() && c.xpath.trim())
+
+  const handleSave = () => {
+    if (!isValid) return
+    onSave({
+      id: initialRule?.id ?? generateId(),
+      name: name.trim(),
+      children,
+    })
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className="form-group">
+        <label className="form-label">그룹 이름</label>
+        <input
+          className="form-input"
+          type="text"
+          placeholder="예: meta, header, info"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <span className="form-hint">결과에서 {`{ "${name || 'name'}": { ... } }`} 형태로 출력됩니다.</span>
+      </div>
+
+      <div className="array-rule-children">
+        <div className="array-rule-children__header">
+          <span>필드 {children.length > 0 && `(${children.length})`}</span>
+          <button className="btn btn--ghost" style={{ fontSize: 11, padding: '2px 6px' }} onClick={addChild}>
+            + 필드 추가
+          </button>
+        </div>
+        {children.length === 0 && (
+          <span className="form-hint">이 그룹에 포함할 필드를 추가하세요.</span>
+        )}
+        {children.map((child, index) => (
+          <div key={child.id} className="child-rule-row">
+            <input
+              className="form-input"
+              type="text"
+              placeholder="필드명"
+              value={child.name}
+              onChange={(e) => updateChild(index, 'name', e.target.value)}
+            />
+            <input
+              className="form-input monospace"
+              type="text"
+              placeholder="//h1"
+              value={child.xpath}
+              onChange={(e) => updateChild(index, 'xpath', e.target.value)}
+            />
+            <select
+              className="form-select"
+              value={child.attr ?? 'innerText'}
+              onChange={(e) => updateChild(index, 'attr', e.target.value)}
+            >
+              <option value="innerText">text</option>
+              <option value="innerHTML">html</option>
+              <option value="href">href</option>
+              <option value="src">src</option>
+            </select>
+            <button
+              className="btn btn--ghost btn--icon"
+              onClick={() => removeChild(index)}
+              title="삭제"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+        <button className="btn btn--ghost" onClick={onCancel}>취소</button>
+        <button
+          className="btn btn--primary"
+          onClick={handleSave}
+          disabled={!isValid}
         >
           저장
         </button>
@@ -253,6 +374,9 @@ type TabKey = 'rules' | 'settings'
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('rules')
   const [rules, setRules] = useState<ExtractRule[]>([])
+  const [objectRules, setObjectRules] = useState<ObjectRule[]>([])
+  const [showObjectRuleForm, setShowObjectRuleForm] = useState(false)
+  const [editingObjectRule, setEditingObjectRule] = useState<ObjectRule | null>(null)
   const [arrayRules, setArrayRules] = useState<ArrayRule[]>([])
   const [showArrayRuleForm, setShowArrayRuleForm] = useState(false)
   const [editingArrayRule, setEditingArrayRule] = useState<ArrayRule | null>(null)
@@ -271,10 +395,11 @@ export default function App() {
   // ============================================================
 
   useEffect(() => {
-    chrome.storage.local.get(['defaultFormat', 'backendUrl', 'rules', 'arrayRules']).then((data) => {
+    chrome.storage.local.get(['defaultFormat', 'backendUrl', 'rules', 'objectRules', 'arrayRules']).then((data) => {
       if (data.defaultFormat) setFormat(data.defaultFormat as OutputFormat)
       if (data.backendUrl) setBackendUrl(data.backendUrl as string)
       if (data.rules) setRules(data.rules as ExtractRule[])
+      if (data.objectRules) setObjectRules(data.objectRules as ObjectRule[])
       if (data.arrayRules) setArrayRules(data.arrayRules as ArrayRule[])
     })
   }, [])
@@ -300,6 +425,11 @@ export default function App() {
   const saveRules = useCallback((newRules: ExtractRule[]) => {
     setRules(newRules)
     chrome.storage.local.set({ rules: newRules })
+  }, [])
+
+  const saveObjectRules = useCallback((next: ObjectRule[]) => {
+    setObjectRules(next)
+    chrome.storage.local.set({ objectRules: next })
   }, [])
 
   const saveArrayRules = useCallback((next: ArrayRule[]) => {
@@ -331,6 +461,28 @@ export default function App() {
     if (target < 0 || target >= next.length) return
     ;[next[index], next[target]] = [next[target], next[index]]
     saveRules(next)
+  }
+
+  const handleAddObjectRule = (rule: ObjectRule) => {
+    saveObjectRules([...objectRules, rule])
+    setShowObjectRuleForm(false)
+  }
+
+  const handleUpdateObjectRule = (rule: ObjectRule) => {
+    saveObjectRules(objectRules.map((r) => (r.id === rule.id ? rule : r)))
+    setEditingObjectRule(null)
+  }
+
+  const handleDeleteObjectRule = (id: string) => {
+    saveObjectRules(objectRules.filter((r) => r.id !== id))
+  }
+
+  const handleMoveObjectRule = (index: number, direction: 'up' | 'down') => {
+    const next = [...objectRules]
+    const target = direction === 'up' ? index - 1 : index + 1
+    if (target < 0 || target >= next.length) return
+    ;[next[index], next[target]] = [next[target], next[index]]
+    saveObjectRules(next)
   }
 
   const handleAddArrayRule = (rule: ArrayRule) => {
@@ -375,7 +527,7 @@ export default function App() {
   // ============================================================
 
   const handleExtract = async () => {
-    if (rules.length === 0 && arrayRules.length === 0) {
+    if (rules.length === 0 && objectRules.length === 0 && arrayRules.length === 0) {
       setError('추출 규칙이 없습니다. 규칙을 먼저 추가해주세요.')
       return
     }
@@ -387,6 +539,7 @@ export default function App() {
     try {
       const config: ExtractConfig = {
         rules,
+        objectRules: objectRules.length > 0 ? objectRules : undefined,
         arrayRules: arrayRules.length > 0 ? arrayRules : undefined,
         format,
         backendUrl,
@@ -465,28 +618,12 @@ export default function App() {
 
   const resultPreview = useMemo(() => {
     if (!result) return null
-
-    const arrayKeys = Object.keys(result.arrayResults)
-    const singleKeys = Object.keys(result.singleResults)
-
-    if (arrayKeys.length > 0 && singleKeys.length > 0) {
-      // 단일 + 배열 모두 있는 경우: 합쳐서 표시
-      const combined: Record<string, unknown> = { ...result.singleResults }
-      for (const [key, arr] of Object.entries(result.arrayResults)) {
-        combined[key] = arr
-      }
-      return JSON.stringify(combined, null, 2)
-    }
-
-    if (arrayKeys.length > 0) {
-      // 배열만 있는 경우
-      return arrayKeys.length === 1
-        ? JSON.stringify(result.arrayResults[arrayKeys[0]], null, 2)
-        : JSON.stringify(result.arrayResults, null, 2)
-    }
-
-    // 단일만 있는 경우
-    return JSON.stringify(result.singleResults, null, 2)
+    const combined: Record<string, unknown> = { ...result.singleResults }
+    for (const [k, v] of Object.entries(result.objectResults)) combined[k] = v
+    for (const [k, v] of Object.entries(result.arrayResults)) combined[k] = v
+    return Object.keys(combined).length === 0
+      ? '(추출 결과 없음)'
+      : JSON.stringify(combined, null, 2)
   }, [result])
 
   // ============================================================
@@ -649,6 +786,108 @@ export default function App() {
                             <button
                               className="btn btn--ghost btn--icon"
                               onClick={() => handleDeleteRule(rule.id)}
+                              title="삭제"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="divider" />
+
+            {/* 객체 추출 규칙 섹션 */}
+            <div className="section">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span className="section__title">
+                  객체 추출 규칙 {objectRules.length > 0 && `(${objectRules.length})`}
+                </span>
+                <button
+                  className="btn btn--ghost"
+                  onClick={() => { setShowObjectRuleForm(true); setEditingObjectRule(null) }}
+                >
+                  + 객체 규칙 추가
+                </button>
+              </div>
+
+              {showObjectRuleForm && !editingObjectRule && (
+                <div style={{
+                  padding: 10,
+                  background: '#faf5ff',
+                  border: '1px solid #d8b4fe',
+                  borderRadius: 6,
+                }}>
+                  <ObjectRuleForm
+                    onSave={handleAddObjectRule}
+                    onCancel={() => setShowObjectRuleForm(false)}
+                  />
+                </div>
+              )}
+
+              {objectRules.length === 0 && !showObjectRuleForm ? (
+                <div className="empty-state">
+                  여러 필드를 하나의 중첩 객체로 묶을 때 사용합니다.
+                </div>
+              ) : (
+                <div className="rule-list">
+                  {objectRules.map((rule, index) => (
+                    <div key={rule.id}>
+                      {editingObjectRule?.id === rule.id ? (
+                        <div style={{
+                          padding: 10,
+                          background: '#fefce8',
+                          border: '1px solid #fde047',
+                          borderRadius: 6,
+                        }}>
+                          <ObjectRuleForm
+                            initialRule={rule}
+                            onSave={handleUpdateObjectRule}
+                            onCancel={() => setEditingObjectRule(null)}
+                          />
+                        </div>
+                      ) : (
+                        <div className="object-rule-item">
+                          <div className="rule-item__info">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div className="rule-item__name">{rule.name}</div>
+                              <span className="object-rule-item__badge">{rule.children.length}필드</span>
+                            </div>
+                            <div className="rule-item__xpath">
+                              {rule.children.map((c) => c.name).join(', ')}
+                            </div>
+                          </div>
+                          <div className="rule-item__actions">
+                            <button
+                              className="btn btn--ghost btn--icon"
+                              onClick={() => handleMoveObjectRule(index, 'up')}
+                              disabled={index === 0}
+                              title="위로"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--icon"
+                              onClick={() => handleMoveObjectRule(index, 'down')}
+                              disabled={index === objectRules.length - 1}
+                              title="아래로"
+                            >
+                              ↓
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--icon"
+                              onClick={() => setEditingObjectRule(rule)}
+                              title="수정"
+                            >
+                              ✏
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--icon"
+                              onClick={() => handleDeleteObjectRule(rule.id)}
                               title="삭제"
                             >
                               ✕
@@ -843,6 +1082,7 @@ export default function App() {
                 onClick={() => {
                   if (confirm('모든 규칙을 삭제하시겠습니까?')) {
                     saveRules([])
+                    saveObjectRules([])
                     saveArrayRules([])
                   }
                 }}
@@ -867,7 +1107,7 @@ export default function App() {
           <button
             className="btn btn--primary btn--full btn--lg"
             onClick={handleExtract}
-            disabled={isExtracting || (rules.length === 0 && arrayRules.length === 0)}
+            disabled={isExtracting || (rules.length === 0 && objectRules.length === 0 && arrayRules.length === 0)}
           >
             {isExtracting ? '추출 중...' : '추출 실행'}
           </button>

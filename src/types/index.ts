@@ -16,6 +16,16 @@ export interface ExtractRule {
 }
 
 /**
+ * 중첩 객체 추출 규칙
+ * 결과: { [name]: { child1: "...", child2: "..." } }
+ */
+export interface ObjectRule {
+  id: string
+  name: string
+  children: ExtractRule[]
+}
+
+/**
  * 반복 컨테이너에서 자식 규칙을 반복 추출하는 Array 모드 규칙
  */
 export interface ArrayRule {
@@ -37,6 +47,7 @@ export type OutputFormat = 'json' | 'json-array' | 'csv' | 'markdown' | 'raw'
 
 export interface ExtractConfig {
   rules: ExtractRule[]
+  objectRules?: ObjectRule[]
   arrayRules?: ArrayRule[]
   format: OutputFormat
   backendUrl?: string
@@ -52,6 +63,7 @@ export type ArrayExtractionResult = ExtractionResult[]
 
 export interface ExtractOutput {
   singleResults: ExtractionResult
+  objectResults: Record<string, ExtractionResult>
   arrayResults: Record<string, ArrayExtractionResult>
   format: OutputFormat
   url: string
@@ -172,6 +184,8 @@ export interface StorageSchema {
   defaultFormat?: OutputFormat
   /** 단일 추출 규칙 목록 */
   rules?: ExtractRule[]
+  /** 중첩 객체 추출 규칙 목록 */
+  objectRules?: ObjectRule[]
   /** 배열 추출 규칙 목록 */
   arrayRules?: ArrayRule[]
   /** hostname 기준으로 저장된 추출 설정 템플릿 */

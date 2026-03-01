@@ -325,6 +325,14 @@ export default function App() {
     saveRules(newRules)
   }
 
+  const handleMoveRule = (index: number, direction: 'up' | 'down') => {
+    const next = [...rules]
+    const target = direction === 'up' ? index - 1 : index + 1
+    if (target < 0 || target >= next.length) return
+    ;[next[index], next[target]] = [next[target], next[index]]
+    saveRules(next)
+  }
+
   const handleAddArrayRule = (rule: ArrayRule) => {
     saveArrayRules([...arrayRules, rule])
     setShowArrayRuleForm(false)
@@ -337,6 +345,14 @@ export default function App() {
 
   const handleDeleteArrayRule = (id: string) => {
     saveArrayRules(arrayRules.filter((r) => r.id !== id))
+  }
+
+  const handleMoveArrayRule = (index: number, direction: 'up' | 'down') => {
+    const next = [...arrayRules]
+    const target = direction === 'up' ? index - 1 : index + 1
+    if (target < 0 || target >= next.length) return
+    ;[next[index], next[target]] = [next[target], next[index]]
+    saveArrayRules(next)
   }
 
   // ============================================================
@@ -444,30 +460,33 @@ export default function App() {
   }
 
   // ============================================================
-  // 결과 미리보기 — 단일/배열 요약
+  // 결과 미리보기 — 전체 JSON
   // ============================================================
 
   const resultPreview = useMemo(() => {
     if (!result) return null
-    const lines: string[] = []
 
+    const arrayKeys = Object.keys(result.arrayResults)
     const singleKeys = Object.keys(result.singleResults)
-    if (singleKeys.length > 0) {
-      lines.push(`[단일: ${singleKeys.length}개 필드]`)
-      for (const k of singleKeys)
-        lines.push(`  ${k}: ${result.singleResults[k]?.slice(0, 60) ?? '(null)'}`)
-    }
 
-    for (const [key, arr] of Object.entries(result.arrayResults)) {
-      lines.push(`[배열: "${key}" — ${arr.length}행]`)
-      if (arr.length > 0) {
-        for (const [f, v] of Object.entries(arr[0]))
-          lines.push(`  ${f}: ${(v as string)?.slice(0, 60) ?? '(null)'}`)
-        if (arr.length > 1) lines.push(`  ... (총 ${arr.length}행)`)
+    if (arrayKeys.length > 0 && singleKeys.length > 0) {
+      // 단일 + 배열 모두 있는 경우: 합쳐서 표시
+      const combined: Record<string, unknown> = { ...result.singleResults }
+      for (const [key, arr] of Object.entries(result.arrayResults)) {
+        combined[key] = arr
       }
+      return JSON.stringify(combined, null, 2)
     }
 
-    return lines.join('\n')
+    if (arrayKeys.length > 0) {
+      // 배열만 있는 경우
+      return arrayKeys.length === 1
+        ? JSON.stringify(result.arrayResults[arrayKeys[0]], null, 2)
+        : JSON.stringify(result.arrayResults, null, 2)
+    }
+
+    // 단일만 있는 경우
+    return JSON.stringify(result.singleResults, null, 2)
   }, [result])
 
   // ============================================================
@@ -582,7 +601,7 @@ export default function App() {
                 </div>
               ) : (
                 <div className="rule-list">
-                  {rules.map((rule) => (
+                  {rules.map((rule, index) => (
                     <div key={rule.id}>
                       {editingRule?.id === rule.id ? (
                         <div style={{
@@ -604,6 +623,22 @@ export default function App() {
                             <div className="rule-item__xpath">{rule.xpath}</div>
                           </div>
                           <div className="rule-item__actions">
+                            <button
+                              className="btn btn--ghost btn--icon"
+                              onClick={() => handleMoveRule(index, 'up')}
+                              disabled={index === 0}
+                              title="위로"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--icon"
+                              onClick={() => handleMoveRule(index, 'down')}
+                              disabled={index === rules.length - 1}
+                              title="아래로"
+                            >
+                              ↓
+                            </button>
                             <button
                               className="btn btn--ghost btn--icon"
                               onClick={() => setEditingRule(rule)}
@@ -665,7 +700,7 @@ export default function App() {
                 </div>
               ) : (
                 <div className="rule-list">
-                  {arrayRules.map((rule) => (
+                  {arrayRules.map((rule, index) => (
                     <div key={rule.id}>
                       {editingArrayRule?.id === rule.id ? (
                         <div style={{
@@ -690,6 +725,22 @@ export default function App() {
                             <div className="rule-item__xpath">{rule.containerXPath}</div>
                           </div>
                           <div className="rule-item__actions">
+                            <button
+                              className="btn btn--ghost btn--icon"
+                              onClick={() => handleMoveArrayRule(index, 'up')}
+                              disabled={index === 0}
+                              title="위로"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--icon"
+                              onClick={() => handleMoveArrayRule(index, 'down')}
+                              disabled={index === arrayRules.length - 1}
+                              title="아래로"
+                            >
+                              ↓
+                            </button>
                             <button
                               className="btn btn--ghost btn--icon"
                               onClick={() => setEditingArrayRule(rule)}

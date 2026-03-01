@@ -202,3 +202,31 @@ export interface MessageResponse<T = unknown> {
   data?: T
   error?: string
 }
+
+// ============================================================
+// 템플릿 시스템 타입
+// ============================================================
+
+/** 통합 규칙 엔트리 (App.tsx에서 이동, 공유 타입으로) */
+export type RuleEntry =
+  | { kind: 'field';  data: ExtractRule }
+  | { kind: 'object'; data: ObjectRule }
+  | { kind: 'array';  data: ArrayRule }
+
+/** 템플릿 카테고리 */
+export type TemplateCategory = 'json' | 'markdown' | 'download'
+
+/** 다운로드 대상 (Phase 3+ 예정) */
+export type DownloadTarget = 'image' | 'video' | 'youtube' | 'file'
+
+/** 규칙 묶음 템플릿 */
+export interface Template {
+  id: string
+  name: string
+  description?: string
+  category: TemplateCategory
+  downloadTarget?: DownloadTarget
+  rules: RuleEntry[]
+  createdAt: string
+  updatedAt: string
+}

@@ -18,6 +18,9 @@ import type {
   OutputFormat,
   ExtractOutput,
   MessageResponse,
+  RuleEntry,
+  Template,
+  TemplateCategory,
 } from '../types'
 
 // ============================================================
@@ -35,15 +38,6 @@ const FORMAT_OPTIONS: { value: OutputFormat; label: string }[] = [
   { value: 'markdown', label: 'Markdown 테이블' },
   { value: 'raw', label: 'Raw (key: value)' },
 ]
-
-// ============================================================
-// RuleEntry 타입 (App.tsx 내부 전용)
-// ============================================================
-
-type RuleEntry =
-  | { kind: 'field';  data: ExtractRule }
-  | { kind: 'object'; data: ObjectRule }
-  | { kind: 'array';  data: ArrayRule }
 
 // ============================================================
 // RuleListItem 컴포넌트
@@ -435,7 +429,7 @@ function ArrayRuleForm({ initialRule, onSave, onCancel }: ArrayRuleFormProps) {
 // 메인 App
 // ============================================================
 
-type TabKey = 'rules' | 'settings'
+type TabKey = 'rules' | 'settings' | 'templates'
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('rules')
@@ -453,12 +447,19 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [selectedXPath, setSelectedXPath] = useState<string | null>(null)
 
+  // 템플릿 state
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [templateName, setTemplateName] = useState('')
+  const [templateDesc, setTemplateDesc] = useState('')
+  const [templateCategory, setTemplateCategory] = useState<TemplateCategory>('json')
+  const [importError, setImportError] = useState<string | null>(null)
+
   // ============================================================
   // 초기화: chrome.storage에서 설정 불러오기 (마이그레이션 포함)
   // ============================================================
 
   useEffect(() => {
-    chrome.storage.local.get(['defaultFormat', 'backendUrl', 'allRules', 'rules', 'objectRules', 'arrayRules']).then((data) => {
+    chrome.storage.local.get(['defaultFormat', 'backendUrl', 'allRules', 'rules', 'objectRules', 'arrayRules', 'templates']).then((data) => {
       if (data.defaultFormat) setFormat(data.defaultFormat as OutputFormat)
       if (data.backendUrl) setBackendUrl(data.backendUrl as string)
 
@@ -473,6 +474,8 @@ export default function App() {
         ]
         setAllRules(migrated)
       }
+
+      setTemplates((data.templates as Template[]) ?? [])
     })
   }, [])
 
@@ -631,6 +634,74 @@ export default function App() {
   }
 
   // ============================================================
+  // 템플릿 핸들러
+  // ============================================================
+
+  const handleSaveTemplate = () => {
+    if (!templateName.trim() || allRules.length === 0) return
+    const newTemplate: Template = {
+      id: crypto.randomUUID(),
+      name: templateName.trim(),
+      description: templateDesc.trim() || undefined,
+      category: templateCategory,
+      rules: allRules,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    const next = [...templates, newTemplate]
+    setTemplates(next)
+    chrome.storage.local.set({ templates: next })
+    setTemplateName('')
+    setTemplateDesc('')
+  }
+
+  const handleLoadTemplate = (template: Template) => {
+    const existingIds = new Set(allRules.map(r => r.data.id))
+    const newRules = template.rules.filter(r => !existingIds.has(r.data.id))
+    saveAllRules([...allRules, ...newRules])
+    setActiveTab('rules')
+  }
+
+  const handleDeleteTemplate = (id: string) => {
+    const next = templates.filter(t => t.id !== id)
+    setTemplates(next)
+    chrome.storage.local.set({ templates: next })
+  }
+
+  const handleExportTemplate = (template: Template) => {
+    const json = JSON.stringify(template, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const safeName = template.name.replace(/[^a-zA-Z0-9가-힣_-]/g, '-')
+    chrome.downloads.download({ url, filename: `jce-template-${safeName}.json` })
+  }
+
+  const handleImportTemplate = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setImportError(null)
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const raw = JSON.parse(ev.target?.result as string)
+        const items: Template[] = Array.isArray(raw) ? raw : [raw]
+        const withNewId = items.map(t => ({
+          ...t,
+          id: crypto.randomUUID(),
+          updatedAt: new Date().toISOString(),
+        }))
+        const next = [...templates, ...withNewId]
+        setTemplates(next)
+        chrome.storage.local.set({ templates: next })
+      } catch {
+        setImportError('JSON 파싱 실패. 올바른 템플릿 파일인지 확인해주세요.')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  // ============================================================
   // 결과 미리보기 — 전체 JSON
   // ============================================================
 
@@ -669,6 +740,12 @@ export default function App() {
           onClick={() => setActiveTab('settings')}
         >
           설정
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'templates' ? 'tab-button--active' : ''}`}
+          onClick={() => setActiveTab('templates')}
+        >
+          템플릿{templates.length > 0 && <span className="tab-count">{templates.length}</span>}
         </button>
       </nav>
 
@@ -924,6 +1001,116 @@ export default function App() {
             >
               설정 저장
             </button>
+          </>
+        )}
+
+        {/* ---- 템플릿 탭 ---- */}
+        {activeTab === 'templates' && (
+          <>
+            {/* 현재 규칙 저장 */}
+            <section className="section">
+              <h3 className="section-title">현재 규칙 저장</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <input
+                  className="form-input"
+                  placeholder="템플릿 이름 *"
+                  value={templateName}
+                  onChange={e => setTemplateName(e.target.value)}
+                />
+                <input
+                  className="form-input"
+                  placeholder="설명 (선택)"
+                  value={templateDesc}
+                  onChange={e => setTemplateDesc(e.target.value)}
+                />
+                <select
+                  className="form-select"
+                  value={templateCategory}
+                  onChange={e => setTemplateCategory(e.target.value as TemplateCategory)}
+                >
+                  <option value="json">JSON 추출</option>
+                  <option value="markdown">Markdown 추출 (예정)</option>
+                  <option value="download">파일 다운로드 (예정)</option>
+                </select>
+                <button
+                  className="btn btn--primary"
+                  onClick={handleSaveTemplate}
+                  disabled={!templateName.trim() || allRules.length === 0}
+                >
+                  저장
+                </button>
+                {allRules.length === 0 && (
+                  <p className="form-hint">규칙 탭에서 먼저 규칙을 추가하세요.</p>
+                )}
+              </div>
+            </section>
+
+            {/* 저장된 템플릿 목록 */}
+            <section className="section">
+              <h3 className="section-title">저장된 템플릿 ({templates.length})</h3>
+              {templates.length === 0 ? (
+                <p style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', padding: '12px 0' }}>
+                  저장된 템플릿이 없습니다.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {templates.map(t => (
+                    <div key={t.id} className="template-item">
+                      <div className="template-item-header">
+                        <span className={`template-category-badge template-category-badge--${t.category}`}>
+                          {t.category === 'json' ? 'JSON' : t.category === 'markdown' ? 'MD' : 'DL'}
+                        </span>
+                        <span style={{ fontWeight: 600, fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {t.name}
+                        </span>
+                      </div>
+                      {t.description && (
+                        <p className="form-hint" style={{ margin: 0 }}>{t.description}</p>
+                      )}
+                      <div className="template-item-meta">
+                        규칙 {t.rules.length}개 · {t.createdAt.slice(0, 10)}
+                      </div>
+                      <div className="template-item-actions">
+                        <button className="btn btn--primary" style={{ fontSize: 11, padding: '3px 8px' }}
+                          onClick={() => handleLoadTemplate(t)}>
+                          불러오기
+                        </button>
+                        <button className="btn btn--ghost" style={{ fontSize: 11, padding: '3px 8px' }}
+                          onClick={() => handleExportTemplate(t)}>
+                          내보내기
+                        </button>
+                        <button className="btn btn--danger" style={{ fontSize: 11, padding: '3px 8px' }}
+                          onClick={() => handleDeleteTemplate(t.id)}>
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* JSON 가져오기 */}
+            <section className="section">
+              <h3 className="section-title">JSON 가져오기</h3>
+              <input
+                type="file"
+                accept=".json"
+                id="template-import-input"
+                style={{ display: 'none' }}
+                onChange={handleImportTemplate}
+              />
+              <button
+                className="btn btn--ghost"
+                style={{ width: '100%' }}
+                onClick={() => document.getElementById('template-import-input')?.click()}
+              >
+                파일 선택 (.json)
+              </button>
+              {importError && (
+                <div className="alert alert--error" style={{ marginTop: 6 }}>{importError}</div>
+              )}
+            </section>
           </>
         )}
       </main>

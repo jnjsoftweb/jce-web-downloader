@@ -570,3 +570,77 @@ body {
   color: var(--color-text);
   word-break: break-all;
 }
+
+/* ============================================================
+   탭 카운트 배지
+   ============================================================ */
+
+.tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  padding: 0 5px;
+  min-width: 18px;
+  height: 16px;
+  background: var(--color-primary);
+  color: #ffffff;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ============================================================
+   섹션 제목 (h3 태그용 — section__title의 h3 버전)
+   ============================================================ */
+
+.section-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+/* ============================================================
+   Template System
+   ============================================================ */
+
+.template-category-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.template-category-badge--json     { background: #dbeafe; color: #1d4ed8; }
+.template-category-badge--markdown { background: #fef9c3; color: #a16207; }
+.template-category-badge--download { background: #fee2e2; color: #b91c1c; }
+
+.template-item {
+  padding: 8px 10px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.template-item-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.template-item-meta {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.template-item-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}

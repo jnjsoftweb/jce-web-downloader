@@ -170,8 +170,12 @@ export interface StorageSchema {
   backendUrl?: string
   /** 기본 출력 포맷 */
   defaultFormat?: OutputFormat
+  /** 단일 추출 규칙 목록 */
+  rules?: ExtractRule[]
+  /** 배열 추출 규칙 목록 */
+  arrayRules?: ArrayRule[]
   /** hostname 기준으로 저장된 추출 설정 템플릿 */
-  [templateKey: `template:${string}`]: ExtractConfig
+  [templateKey: `template:${string}`]: unknown
 }
 
 // ============================================================

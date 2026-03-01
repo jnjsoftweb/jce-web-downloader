@@ -459,6 +459,63 @@ body {
 }
 
 /* ============================================================
+   배열 추출 규칙
+   ============================================================ */
+
+/* 배열 규칙 아이템 — rule-item과 동일 구조, 초록 accent로 시각 구분 */
+.array-rule-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md);
+}
+
+.array-rule-item__badge {
+  font-size: var(--font-size-xs);
+  color: #166534;
+  background: #dcfce7;
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* children 섹션 */
+.array-rule-children {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.array-rule-children__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+/* child 행: [이름 1fr] [XPath 1.5fr] [attr 52px] [삭제 28px] */
+.child-rule-row {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 52px 28px;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
+
+.child-rule-row .form-input,
+.child-rule-row .form-select {
+  font-size: var(--font-size-xs);
+  padding: 3px var(--spacing-xs);
+}
+
+/* ============================================================
    선택된 XPath 표시
    ============================================================ */
 

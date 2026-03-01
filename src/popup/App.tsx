@@ -9,9 +9,10 @@
  * Popup → chrome.runtime.sendMessage → Background → chrome.tabs.sendMessage → Content
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type {
   ExtractRule,
+  ArrayRule,
   ExtractConfig,
   OutputFormat,
   ExtractOutput,
@@ -111,6 +112,139 @@ function RuleForm({ initialRule, onSave, onCancel }: RuleFormProps) {
 }
 
 // ============================================================
+// ArrayRuleForm
+// ============================================================
+
+interface ArrayRuleFormProps {
+  initialRule?: ArrayRule
+  onSave: (rule: ArrayRule) => void
+  onCancel: () => void
+}
+
+function ArrayRuleForm({ initialRule, onSave, onCancel }: ArrayRuleFormProps) {
+  const [name, setName] = useState(initialRule?.name ?? '')
+  const [containerXPath, setContainerXPath] = useState(initialRule?.containerXPath ?? '')
+  const [children, setChildren] = useState<ExtractRule[]>(initialRule?.children ?? [])
+
+  const addChild = () => {
+    setChildren((prev) => [
+      ...prev,
+      { id: generateId(), name: '', xpath: '', attr: 'innerText' },
+    ])
+  }
+
+  const updateChild = (index: number, field: keyof ExtractRule, value: string) => {
+    setChildren((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, [field]: value } : c))
+    )
+  }
+
+  const removeChild = (index: number) => {
+    setChildren((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const isValid =
+    name.trim() &&
+    containerXPath.trim() &&
+    children.length > 0 &&
+    children.every((c) => c.name.trim() && c.xpath.trim())
+
+  const handleSave = () => {
+    if (!isValid) return
+    onSave({
+      id: initialRule?.id ?? generateId(),
+      name: name.trim(),
+      containerXPath: containerXPath.trim(),
+      children,
+    })
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div className="form-group">
+        <label className="form-label">규칙 이름</label>
+        <input
+          className="form-input"
+          type="text"
+          placeholder="예: 상품목록, 검색결과"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </div>
+      <div className="form-group">
+        <label className="form-label">컨테이너 XPath</label>
+        <input
+          className="form-input monospace"
+          type="text"
+          placeholder="예: //table/tbody/tr"
+          value={containerXPath}
+          onChange={(e) => setContainerXPath(e.target.value)}
+        />
+        <span className="form-hint">반복되는 항목의 부모 컨테이너 XPath</span>
+      </div>
+
+      <div className="array-rule-children">
+        <div className="array-rule-children__header">
+          <span>자식 필드 {children.length > 0 && `(${children.length})`}</span>
+          <button className="btn btn--ghost" style={{ fontSize: 11, padding: '2px 6px' }} onClick={addChild}>
+            + 필드 추가
+          </button>
+        </div>
+        {children.length === 0 && (
+          <span className="form-hint">각 항목 기준 상대 XPath로 추출할 필드를 추가하세요. 예: .//td[1]</span>
+        )}
+        {children.map((child, index) => (
+          <div key={child.id} className="child-rule-row">
+            <input
+              className="form-input"
+              type="text"
+              placeholder="필드명"
+              value={child.name}
+              onChange={(e) => updateChild(index, 'name', e.target.value)}
+            />
+            <input
+              className="form-input monospace"
+              type="text"
+              placeholder=".//td[1]"
+              value={child.xpath}
+              onChange={(e) => updateChild(index, 'xpath', e.target.value)}
+            />
+            <select
+              className="form-select"
+              value={child.attr ?? 'innerText'}
+              onChange={(e) => updateChild(index, 'attr', e.target.value)}
+            >
+              <option value="innerText">text</option>
+              <option value="innerHTML">html</option>
+              <option value="href">href</option>
+              <option value="src">src</option>
+            </select>
+            <button
+              className="btn btn--ghost btn--icon"
+              onClick={() => removeChild(index)}
+              title="삭제"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+        <button className="btn btn--ghost" onClick={onCancel}>취소</button>
+        <button
+          className="btn btn--primary"
+          onClick={handleSave}
+          disabled={!isValid}
+        >
+          저장
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
 // 메인 App
 // ============================================================
 
@@ -119,6 +253,9 @@ type TabKey = 'rules' | 'settings'
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('rules')
   const [rules, setRules] = useState<ExtractRule[]>([])
+  const [arrayRules, setArrayRules] = useState<ArrayRule[]>([])
+  const [showArrayRuleForm, setShowArrayRuleForm] = useState(false)
+  const [editingArrayRule, setEditingArrayRule] = useState<ArrayRule | null>(null)
   const [format, setFormat] = useState<OutputFormat>('json')
   const [backendUrl, setBackendUrl] = useState('http://127.0.0.1:8000')
   const [isSelectMode, setIsSelectMode] = useState(false)
@@ -134,10 +271,11 @@ export default function App() {
   // ============================================================
 
   useEffect(() => {
-    chrome.storage.local.get(['defaultFormat', 'backendUrl', 'rules']).then((data) => {
+    chrome.storage.local.get(['defaultFormat', 'backendUrl', 'rules', 'arrayRules']).then((data) => {
       if (data.defaultFormat) setFormat(data.defaultFormat as OutputFormat)
       if (data.backendUrl) setBackendUrl(data.backendUrl as string)
       if (data.rules) setRules(data.rules as ExtractRule[])
+      if (data.arrayRules) setArrayRules(data.arrayRules as ArrayRule[])
     })
   }, [])
 
@@ -164,6 +302,11 @@ export default function App() {
     chrome.storage.local.set({ rules: newRules })
   }, [])
 
+  const saveArrayRules = useCallback((next: ArrayRule[]) => {
+    setArrayRules(next)
+    chrome.storage.local.set({ arrayRules: next })
+  }, [])
+
   const handleAddRule = (rule: ExtractRule) => {
     const newRules = [...rules, rule]
     saveRules(newRules)
@@ -180,6 +323,20 @@ export default function App() {
   const handleDeleteRule = (id: string) => {
     const newRules = rules.filter((r) => r.id !== id)
     saveRules(newRules)
+  }
+
+  const handleAddArrayRule = (rule: ArrayRule) => {
+    saveArrayRules([...arrayRules, rule])
+    setShowArrayRuleForm(false)
+  }
+
+  const handleUpdateArrayRule = (rule: ArrayRule) => {
+    saveArrayRules(arrayRules.map((r) => (r.id === rule.id ? rule : r)))
+    setEditingArrayRule(null)
+  }
+
+  const handleDeleteArrayRule = (id: string) => {
+    saveArrayRules(arrayRules.filter((r) => r.id !== id))
   }
 
   // ============================================================
@@ -202,7 +359,7 @@ export default function App() {
   // ============================================================
 
   const handleExtract = async () => {
-    if (rules.length === 0) {
+    if (rules.length === 0 && arrayRules.length === 0) {
       setError('추출 규칙이 없습니다. 규칙을 먼저 추가해주세요.')
       return
     }
@@ -212,7 +369,12 @@ export default function App() {
     setResult(null)
 
     try {
-      const config: ExtractConfig = { rules, format, backendUrl }
+      const config: ExtractConfig = {
+        rules,
+        arrayRules: arrayRules.length > 0 ? arrayRules : undefined,
+        format,
+        backendUrl,
+      }
 
       const response = await chrome.runtime.sendMessage({
         type: 'EXTRACT_DATA',
@@ -282,12 +444,31 @@ export default function App() {
   }
 
   // ============================================================
-  // 결과 텍스트 미리보기 (200자 제한)
+  // 결과 미리보기 — 단일/배열 요약
   // ============================================================
 
-  const resultPreview = result
-    ? JSON.stringify(result, null, 2).slice(0, 500)
-    : null
+  const resultPreview = useMemo(() => {
+    if (!result) return null
+    const lines: string[] = []
+
+    const singleKeys = Object.keys(result.singleResults)
+    if (singleKeys.length > 0) {
+      lines.push(`[단일: ${singleKeys.length}개 필드]`)
+      for (const k of singleKeys)
+        lines.push(`  ${k}: ${result.singleResults[k]?.slice(0, 60) ?? '(null)'}`)
+    }
+
+    for (const [key, arr] of Object.entries(result.arrayResults)) {
+      lines.push(`[배열: "${key}" — ${arr.length}행]`)
+      if (arr.length > 0) {
+        for (const [f, v] of Object.entries(arr[0]))
+          lines.push(`  ${f}: ${(v as string)?.slice(0, 60) ?? '(null)'}`)
+        if (arr.length > 1) lines.push(`  ... (총 ${arr.length}행)`)
+      }
+    }
+
+    return lines.join('\n')
+  }, [result])
 
   // ============================================================
   // 렌더
@@ -446,6 +627,92 @@ export default function App() {
               )}
             </div>
 
+            <div className="divider" />
+
+            {/* 배열 추출 규칙 섹션 */}
+            <div className="section">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span className="section__title">
+                  배열 추출 규칙 {arrayRules.length > 0 && `(${arrayRules.length})`}
+                </span>
+                <button
+                  className="btn btn--ghost"
+                  onClick={() => { setShowArrayRuleForm(true); setEditingArrayRule(null) }}
+                >
+                  + 배열 규칙 추가
+                </button>
+              </div>
+
+              {/* 배열 규칙 추가 폼 */}
+              {showArrayRuleForm && !editingArrayRule && (
+                <div style={{
+                  padding: 10,
+                  background: '#eff6ff',
+                  border: '1px solid #93c5fd',
+                  borderRadius: 6,
+                }}>
+                  <ArrayRuleForm
+                    onSave={handleAddArrayRule}
+                    onCancel={() => setShowArrayRuleForm(false)}
+                  />
+                </div>
+              )}
+
+              {/* 배열 규칙 목록 */}
+              {arrayRules.length === 0 && !showArrayRuleForm ? (
+                <div className="empty-state">
+                  반복 구조(목록, 테이블 행 등)를 추출할 때 사용합니다.
+                </div>
+              ) : (
+                <div className="rule-list">
+                  {arrayRules.map((rule) => (
+                    <div key={rule.id}>
+                      {editingArrayRule?.id === rule.id ? (
+                        <div style={{
+                          padding: 10,
+                          background: '#fefce8',
+                          border: '1px solid #fde047',
+                          borderRadius: 6,
+                        }}>
+                          <ArrayRuleForm
+                            initialRule={rule}
+                            onSave={handleUpdateArrayRule}
+                            onCancel={() => setEditingArrayRule(null)}
+                          />
+                        </div>
+                      ) : (
+                        <div className="array-rule-item">
+                          <div className="rule-item__info">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div className="rule-item__name">{rule.name}</div>
+                              <span className="array-rule-item__badge">{rule.children.length}필드</span>
+                            </div>
+                            <div className="rule-item__xpath">{rule.containerXPath}</div>
+                          </div>
+                          <div className="rule-item__actions">
+                            <button
+                              className="btn btn--ghost btn--icon"
+                              onClick={() => setEditingArrayRule(rule)}
+                              title="수정"
+                            >
+                              ✏
+                            </button>
+                            <button
+                              className="btn btn--ghost btn--icon"
+                              onClick={() => handleDeleteArrayRule(rule.id)}
+                              title="삭제"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* 오류 표시 */}
             {error && (
               <div className="alert alert--error">{error}</div>
@@ -459,7 +726,7 @@ export default function App() {
                   <span className="form-hint">{result.url?.slice(0, 30)}...</span>
                 </div>
                 <div className="result-output">
-                  {resultPreview}{result && JSON.stringify(result).length > 500 ? '\n...(일부 생략)' : ''}
+                  {resultPreview}
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button className="btn btn--primary" onClick={handleDownload} style={{ flex: 1 }}>
@@ -525,6 +792,7 @@ export default function App() {
                 onClick={() => {
                   if (confirm('모든 규칙을 삭제하시겠습니까?')) {
                     saveRules([])
+                    saveArrayRules([])
                   }
                 }}
               >
@@ -548,7 +816,7 @@ export default function App() {
           <button
             className="btn btn--primary btn--full btn--lg"
             onClick={handleExtract}
-            disabled={isExtracting || rules.length === 0}
+            disabled={isExtracting || (rules.length === 0 && arrayRules.length === 0)}
           >
             {isExtracting ? '추출 중...' : '추출 실행'}
           </button>

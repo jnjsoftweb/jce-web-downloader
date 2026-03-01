@@ -537,6 +537,26 @@ body {
 }
 
 /* ============================================================
+   종류 배지 (F / O / A)
+   ============================================================ */
+
+.rule-kind-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.rule-kind-badge--field  { background: #dbeafe; color: #1d4ed8; }
+.rule-kind-badge--object { background: #ede9fe; color: #6d28d9; }
+.rule-kind-badge--array  { background: #dcfce7; color: #166534; }
+
+/* ============================================================
    선택된 XPath 표시
    ============================================================ */
 

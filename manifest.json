@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JCE Web Downloader",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "XPath 기반 웹 콘텐츠 추출 및 다운로드 도구",
   "permissions": [
     "activeTab",

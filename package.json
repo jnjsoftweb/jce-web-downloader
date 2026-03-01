@@ -1,6 +1,6 @@
 {
   "name": "jce-web-downloader",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "XPath 기반 웹 콘텐츠 추출 및 다운로드 Chrome Extension",
   "private": true,
   "type": "module",
